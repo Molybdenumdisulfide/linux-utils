@@ -781,6 +781,12 @@ install_base() {
     log "Initializing pacman keyring"
     pacman-key --init
     pacman-key --populate archlinux
+
+    # Pre-create vconsole.conf so the mkinitcpio hook triggered by the kernel
+    # package during pacstrap finds it (sd-vconsole requires this file).
+    mkdir -p /mnt/etc
+    echo "KEYMAP=${KEYMAP}" > /mnt/etc/vconsole.conf
+
     log "Packages: ${packages[@]}"
     if ! pacstrap -K /mnt "${packages[@]}"; then
         die "pacstrap failed. Check package names in EXTRA_PACKAGES and ensure mirrors are reachable."
