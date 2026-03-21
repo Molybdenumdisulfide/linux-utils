@@ -735,12 +735,26 @@ build_package_list() {
     [[ -n "$USERNAME" ]] && _pkgs+=(sudo)
 
     case "$GPU_DRIVER" in
-        amd)         _pkgs+=(mesa xf86-video-amdgpu vulkan-radeon libva-mesa-driver mesa-vdpau) ;;
+        amd)         _pkgs+=(mesa xf86-video-amdgpu vulkan-radeon libva-mesa-driver) ;;
         # xf86-video-intel is deprecated upstream; the modesetting DDX (built into
         # Xorg) is preferred and handles modern Intel GPUs better.
         intel)       _pkgs+=(mesa vulkan-intel intel-media-driver) ;;
-        nvidia)      _pkgs+=(nvidia "${KERNEL}-headers" nvidia-utils nvidia-settings) ;;
-        nvidia-open) _pkgs+=(nvidia-open "${KERNEL}-headers" nvidia-utils nvidia-settings) ;;
+        nvidia)
+            # nvidia is kernel-specific; pick the right variant
+            case "$KERNEL" in
+                linux)          _pkgs+=(nvidia) ;;
+                linux-lts)      _pkgs+=(nvidia-lts) ;;
+                *)              _pkgs+=(nvidia-dkms) ;;
+            esac
+            _pkgs+=("${KERNEL}-headers" nvidia-utils nvidia-settings)
+            ;;
+        nvidia-open)
+            case "$KERNEL" in
+                linux)          _pkgs+=(nvidia-open) ;;
+                *)              _pkgs+=(nvidia-open-dkms) ;;
+            esac
+            _pkgs+=("${KERNEL}-headers" nvidia-utils nvidia-settings)
+            ;;
         vmware)      _pkgs+=(xf86-video-vmware open-vm-tools) ;;
         virtualbox)  _pkgs+=(virtualbox-guest-utils) ;;
     esac
