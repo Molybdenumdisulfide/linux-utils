@@ -545,7 +545,7 @@ fi
 if [[ "$ENABLE_AUTO_UPDATE" == "true" ]]; then
     log "Installing daily system update (systemd timer)"
     pacman -S --noconfirm --needed pacman-contrib
-    install -Dm0755 /tmp/update.sh /usr/local/bin/arch-update
+    install -Dm0755 /root/update.sh /usr/local/bin/arch-update
 
     cat > /etc/arch-update.conf << EOF
 # arch-update configuration — edit to customise behaviour
