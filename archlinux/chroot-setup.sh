@@ -604,17 +604,25 @@ if [[ -n "$AUR_HELPER" && -n "$USERNAME" ]]; then
     # Build dependencies (git is needed, base-devel should already be installed)
     pacman -S --noconfirm --needed git base-devel
 
-    # Build and install as the regular user (AUR helpers must not run as root)
+    # Build as the regular user, then install as root.
+    # Using makepkg without -i avoids the user needing sudo during build,
+    # which would prompt for a password and block automated installs.
+    local _aur_builddir
+    _aur_builddir="$(mktemp -d)"
+    chown "$USERNAME":"$USERNAME" "$_aur_builddir"
     if sudo -u "$USERNAME" bash -c '
         set -euo pipefail
-        cd "$(mktemp -d)"
-        git clone "https://aur.archlinux.org/${1}-bin.git" .
-        makepkg -si --noconfirm
-    ' _ "$AUR_HELPER"; then
+        cd "$1"
+        git clone "https://aur.archlinux.org/${2}-bin.git" .
+        makepkg --noconfirm
+    ' _ "$_aur_builddir" "$AUR_HELPER"; then
+        # Install the built package as root — no sudo password needed
+        pacman -U --noconfirm "$_aur_builddir"/*.pkg.tar.zst
         log "$AUR_HELPER installed successfully"
     else
         error "AUR helper ($AUR_HELPER) installation failed (non-fatal) — install manually after reboot"
     fi
+    rm -rf "$_aur_builddir"
 fi
 
 # ------------------------------------------------------------------------------
