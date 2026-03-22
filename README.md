@@ -10,11 +10,11 @@ Automated Arch Linux installation script based on the [official installation gui
 
 | File | Purpose |
 |---|---|
-| `install-tui.sh` | Interactive TUI wizard — recommended entry point |
-| `install.sh` | Headless installer — edit config variables at the top, then run |
-| `chroot-setup.sh` | System configuration executed inside `arch-chroot` (called by `install.sh`) |
-| `update.sh` | Daily automated update script deployed to the installed system via systemd timer |
-| `btrfs-restore.sh` | Restore root filesystem from a btrfs pre-upgrade snapshot |
+| `installation/install-tui.sh` | Interactive TUI wizard — recommended entry point |
+| `installation/install.sh` | Headless installer — edit config variables at the top, then run |
+| `installation/chroot-setup.sh` | System configuration executed inside `arch-chroot` (called by `install.sh`) |
+| `installation/update.sh` | Daily automated update script deployed to the installed system via systemd timer |
+| `installation/btrfs-restore.sh` | Restore root filesystem from a btrfs pre-upgrade snapshot |
 
 **Usage (TUI — recommended):**
 
@@ -23,7 +23,7 @@ Automated Arch Linux installation script based on the [official installation gui
 3. Download or copy the entire `archlinux/` directory to the live environment
 4. Run the interactive wizard:
    ```bash
-   bash install-tui.sh
+   bash installation/install-tui.sh
    ```
 
 **Usage (headless):**
@@ -31,14 +31,14 @@ Automated Arch Linux installation script based on the [official installation gui
 1. Boot from the Arch Linux installation medium
 2. Connect to the internet
 3. Copy the `archlinux/` directory to the live environment
-4. Edit the configuration variables at the top of `install.sh`
+4. Edit the configuration variables at the top of `installation/install.sh`
 5. Preview without making changes:
    ```bash
-   bash install.sh --dry-run
+   bash installation/install.sh --dry-run
    ```
 6. Run:
    ```bash
-   bash install.sh
+   bash installation/install.sh
    ```
 
 **Key configuration options:**
@@ -58,7 +58,7 @@ Automated Arch Linux installation script based on the [official installation gui
 | `KERNEL` | Kernel package | `linux` |
 | `MICROCODE` | CPU microcode (`amd-ucode`, `intel-ucode`) | (empty) |
 | `BOOTLOADER` | Boot loader (`systemd-boot`, `grub`) | `systemd-boot` |
-| `GPU_DRIVER` | Display driver (`amd`, `intel`, `nvidia`, `nvidia-open`, `vmware`, `virtualbox`) | (empty) |
+| `GPU_DRIVER` | Display driver (`amd`, `intel`, `nvidia`, `nvidia-open`, `vmware`, `virtualbox`, `qemu`) | (empty) |
 | `DESKTOP_ENV` | Desktop environment (`kde`/`plasma`, `gnome`, `xfce`, `i3`, `hyprland`, `sway`) | (empty) |
 | `EXTRA_PACKAGES` | Additional packages to install | `nano networkmanager base-devel openssh` |
 | `USERNAME` | Create a regular user with full sudo access (empty to skip) | (empty) |
