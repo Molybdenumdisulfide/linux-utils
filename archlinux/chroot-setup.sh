@@ -582,6 +582,7 @@ EOF
     systemctl enable arch-update.timer
     log "arch-update.timer enabled"
 
+    mkdir -p /etc/logrotate.d
     cat > /etc/logrotate.d/arch-update << 'EOF'
 /var/log/arch-update.log {
     weekly
