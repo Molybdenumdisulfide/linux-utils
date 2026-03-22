@@ -33,11 +33,19 @@ Automated Arch Linux installation script based on the [official installation gui
 | `installation/btrfs-restore.sh` | Restore root filesystem from a btrfs pre-upgrade snapshot |
 | `config/install.json` | Named configuration presets for automated installs |
 
-**Usage (TUI — recommended):**
+**Setup:**
 
 1. Boot from the Arch Linux installation medium
 2. Connect to the internet (`iwctl` for Wi-Fi, or plug in Ethernet)
-3. Download or copy the entire `archlinux/` directory to the live environment
+3. Install git and clone the repo:
+   ```bash
+   pacman -Sy git
+   git clone https://github.com/Molybdenumdisulfide/linux-utils.git
+   ```
+4. Run `install.sh` from the root directory or `cd linux-utils/archlinux`
+
+**Usage (TUI — recommended):**
+
 4. Run the interactive wizard:
    ```bash
    bash installation/install-tui.sh
@@ -45,9 +53,6 @@ Automated Arch Linux installation script based on the [official installation gui
 
 **Usage (headless):**
 
-1. Boot from the Arch Linux installation medium
-2. Connect to the internet
-3. Copy the `archlinux/` directory to the live environment
 4. Edit the configuration variables at the top of `installation/install.sh`
 5. Preview without making changes:
    ```bash
@@ -60,17 +65,14 @@ Automated Arch Linux installation script based on the [official installation gui
 
 **Usage (automated):**
 
-1. Boot from the Arch Linux installation medium
-2. Connect to the internet
-3. Copy the `archlinux/` directory to the live environment
 4. Review/edit configuration presets in `config/install.json`
 5. Preview without making changes:
    ```bash
-   bash installation/automated.sh minimal -- --dry-run
+   bash installation/automated.sh minimal-vm -- --dry-run
    ```
 6. Run:
    ```bash
-   bash installation/automated.sh minimal
+   bash installation/automated.sh minimal-vm
    ```
 
 Passwords can be passed via environment variables (`ROOT_PASSWORD`, `USER_PASSWORD`, `LUKS_PASSWORD`).
