@@ -2,6 +2,21 @@
 
 A collection of Linux utilities and helpers.
 
+## Quick start
+
+The top-level `install.sh` is a dispatcher that routes to the correct OS-specific installer:
+
+```bash
+# Interactive TUI wizard
+bash install.sh archlinux tui
+
+# Automated install using a named config from archlinux/config/install.json
+bash install.sh archlinux auto minimal
+bash install.sh archlinux auto desktop-kde -- --dry-run
+```
+
+Run `bash install.sh` with no arguments to see available operating systems and modes.
+
 ## Contents
 
 ### archlinux
@@ -10,36 +25,61 @@ Automated Arch Linux installation script based on the [official installation gui
 
 | File | Purpose |
 |---|---|
-| `install-tui.sh` | Interactive TUI wizard — recommended entry point |
-| `install.sh` | Headless installer — edit config variables at the top, then run |
-| `chroot-setup.sh` | System configuration executed inside `arch-chroot` (called by `install.sh`) |
-| `update.sh` | Daily automated update script deployed to the installed system via systemd timer |
-| `btrfs-restore.sh` | Restore root filesystem from a btrfs pre-upgrade snapshot |
+| `installation/install-tui.sh` | Interactive TUI wizard — recommended entry point |
+| `installation/install.sh` | Headless installer — edit config variables at the top, then run |
+| `installation/chroot-setup.sh` | System configuration executed inside `arch-chroot` (called by `install.sh`) |
+| `installation/update.sh` | Daily automated update script deployed to the installed system via systemd timer |
+| `installation/automated.sh` | Non-interactive installer driven by a named JSON config |
+| `installation/btrfs-restore.sh` | Restore root filesystem from a btrfs pre-upgrade snapshot |
+| `config/install.json` | Named configuration presets for automated installs |
 
-**Usage (TUI — recommended):**
+**Setup:**
 
 1. Boot from the Arch Linux installation medium
 2. Connect to the internet (`iwctl` for Wi-Fi, or plug in Ethernet)
-3. Download or copy the entire `archlinux/` directory to the live environment
+3. Install git and clone the repo:
+   ```bash
+   pacman -Sy git
+   git clone https://github.com/Molybdenumdisulfide/linux-utils.git
+   ```
+4. Run `install.sh` from the root directory or `cd linux-utils/archlinux`
+
+**Usage (TUI — recommended):**
+
 4. Run the interactive wizard:
    ```bash
-   bash install-tui.sh
+   bash installation/install-tui.sh
    ```
 
 **Usage (headless):**
 
-1. Boot from the Arch Linux installation medium
-2. Connect to the internet
-3. Copy the `archlinux/` directory to the live environment
-4. Edit the configuration variables at the top of `install.sh`
+4. Edit the configuration variables at the top of `installation/install.sh`
 5. Preview without making changes:
    ```bash
-   bash install.sh --dry-run
+   bash installation/install.sh --dry-run
    ```
 6. Run:
    ```bash
-   bash install.sh
+   bash installation/install.sh
    ```
+
+**Usage (automated):**
+
+4. Review/edit configuration presets in `config/install.json`
+5. Preview without making changes:
+   ```bash
+   bash installation/automated.sh minimal-vm -- --dry-run
+   ```
+6. Run:
+   ```bash
+   bash installation/automated.sh minimal-vm
+   ```
+
+Passwords can be passed via environment variables (`ROOT_PASSWORD`, `USER_PASSWORD`, `LUKS_PASSWORD`).
+
+**Note:** If the password is shorter than 8 characters, you will be prompted to check if you are sure.
+
+**Note:** If the disk already contains device signatures, you will be prompted to type YES to wipe it.
 
 **Key configuration options:**
 
@@ -58,7 +98,7 @@ Automated Arch Linux installation script based on the [official installation gui
 | `KERNEL` | Kernel package | `linux` |
 | `MICROCODE` | CPU microcode (`amd-ucode`, `intel-ucode`) | (empty) |
 | `BOOTLOADER` | Boot loader (`systemd-boot`, `grub`) | `systemd-boot` |
-| `GPU_DRIVER` | Display driver (`amd`, `intel`, `nvidia`, `nvidia-open`, `vmware`, `virtualbox`) | (empty) |
+| `GPU_DRIVER` | Display driver (`amd`, `intel`, `nvidia`, `nvidia-open`, `vmware`, `virtualbox`, `qemu`) | (empty) |
 | `DESKTOP_ENV` | Desktop environment (`kde`/`plasma`, `gnome`, `xfce`, `i3`, `hyprland`, `sway`) | (empty) |
 | `EXTRA_PACKAGES` | Additional packages to install | `nano networkmanager base-devel openssh` |
 | `USERNAME` | Create a regular user with full sudo access (empty to skip) | (empty) |

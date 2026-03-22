@@ -26,6 +26,9 @@ set -euo pipefail
 # ==============================================================================
 # CONFIGURATION — Edit these variables before running
 # ==============================================================================
+# Automation flags
+REQUIRE_WIPE_CONFIRMATION=true  # set to false to skip "type YES to continue" prompt for disk wiping
+REQUIRE_REBOOT_CONFIRMATION=true  # set to false to skip the reboot prompt at the end
 
 # Target disk (e.g., /dev/sda, /dev/nvme0n1, /dev/vda)
 DISK="/dev/sda"
@@ -919,8 +922,12 @@ finish_install() {
     log "============================================"
     echo ""
 
-    read -rp "Reboot now? [y/N]: " do_reboot
-    if [[ "${do_reboot,,}" == "y" ]]; then
+    if [[ "$REQUIRE_REBOOT_CONFIRMATION" == true ]]; then
+        read -rp "Reboot now? [y/N]: " do_reboot
+        if [[ "${do_reboot,,}" == "y" ]]; then
+            reboot
+        fi
+    else
         reboot
     fi
 }
@@ -1019,7 +1026,10 @@ main() {
         return 0
     fi
 
-    confirm_install
+    if [[ "$REQUIRE_WIPE_CONFIRMATION" == true ]]; then
+        confirm_install
+    fi
+
     collect_passwords
     update_clock
     INSTALL_STARTED=true
