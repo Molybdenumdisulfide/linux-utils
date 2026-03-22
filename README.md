@@ -77,6 +77,10 @@ Automated Arch Linux installation script based on the [official installation gui
 
 Passwords can be passed via environment variables (`ROOT_PASSWORD`, `USER_PASSWORD`, `LUKS_PASSWORD`).
 
+**Note:** If the password is shorter than 8 characters, you will be prompted to check if you are sure.
+
+**Note:** If the disk already contains device signatures, you will be prompted to type YES to wipe it.
+
 **Key configuration options:**
 
 | Variable | Description | Default |
