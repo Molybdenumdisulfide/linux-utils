@@ -11,7 +11,13 @@
 #   create [-d "description"] Create a manual snapshot
 #   delete <id> [id...]       Delete snapshot(s) by ID
 #   diff <id1> <id2>          Show changes between two snapshots
-#   restore <id>              Restore system to a snapshot (requires live USB)
+#   restore [id] [-D device]  Restore system to a snapshot
+#
+# The restore command can run standalone from a Live ISO:
+#   snapshot-manager restore                          # detect device, list & pick
+#   snapshot-manager restore 5                        # auto-detect device
+#   snapshot-manager restore -D /dev/sda3 5           # explicit device
+#   snapshot-manager restore -D /dev/mapper/cryptroot # LUKS volume
 #
 # Examples:
 #   snapshot-manager                        # list all snapshots
@@ -20,6 +26,7 @@
 #   snapshot-manager delete 42 43
 #   snapshot-manager diff 10 11
 #   snapshot-manager restore 5
+#   snapshot-manager restore -D /dev/sda3
 
 set -euo pipefail
 
@@ -56,14 +63,24 @@ usage() {
 Usage: snapshot-manager <command> [options]
 
 Commands:
-  list                      List all snapshots (default)
-  create [-d "description"] Create a manual snapshot
-  delete <id> [id...]       Delete snapshot(s) by ID
-  diff <id1> <id2>          Show changes between two snapshots
-  restore <id>              Restore system to a snapshot (requires live USB)
+  list                            List all snapshots (default)
+  create [-d "description"]       Create a manual snapshot
+  delete <id> [id...]             Delete snapshot(s) by ID
+  diff <id1> <id2>                Show changes between two snapshots
+  restore [id] [-D <device>]      Restore system to a snapshot
 
 Options:
-  -h, --help                Show this help message
+  -h, --help                      Show this help message
+
+Restore options:
+  -D, --device <device>           Btrfs device or dm-crypt mapper to restore
+                                  (auto-detected if omitted)
+
+Live ISO standalone restore:
+  Boot from Arch install media, clone the repo, and run:
+    snapshot-manager restore                          # detect, list, pick
+    snapshot-manager restore -D /dev/sda3             # explicit device
+    snapshot-manager restore -D /dev/mapper/cryptroot # LUKS volume
 EOF
     exit 0
 }
@@ -282,30 +299,82 @@ _diff_packages() {
 
 # ── restore ──────────────────────────────────────────────────────────────────
 
-cmd_restore() {
-    _require_root
-    [[ $# -eq 1 ]] || die "Usage: snapshot-manager restore <id>"
+# List snapshots from a mounted btrfs volume (offline — no snapper required).
+# Used when restoring from a Live ISO where snapper is not available.
+_list_snapshots_offline() {
+    local snap_dir="$1"
+    local count=0
+    local has_snapper=false
 
-    local snapshot_id="$1"
-    [[ "$snapshot_id" =~ ^[0-9]+$ ]] || die "Invalid snapshot ID: $snapshot_id (must be a number)"
-    [[ "$snapshot_id" -ne 0 ]] || die "Cannot restore snapshot 0 (current system)."
+    # Detect snapper-managed layout
+    while IFS= read -r d; do
+        if [[ -f "$d/info.xml" && -d "$d/snapshot" ]]; then
+            has_snapper=true
+            break
+        fi
+    done < <(find "$snap_dir" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort -V)
 
-    # ── Auto-detect btrfs device ─────────────────────────────────────────
+    if [[ "$has_snapper" == "true" ]]; then
+        printf "  %-6s %-20s %-8s %-14s %s\n" "ID" "DATE" "TYPE" "CLEANUP" "DESCRIPTION"
+        printf "  %-6s %-20s %-8s %-14s %s\n" "------" "--------------------" "--------" "--------------" "-----------"
+        while IFS= read -r d; do
+            local num
+            num="$(basename "$d")"
+            local info_xml="$d/info.xml"
+            [[ -f "$info_xml" && -d "$d/snapshot" ]] || continue
+
+            local snap_type snap_date snap_desc snap_cleanup
+            snap_type=$(_snapper_field "$info_xml" "type")
+            snap_date=$(_snapper_field "$info_xml" "date")
+            snap_desc=$(_snapper_field "$info_xml" "description")
+            snap_cleanup=$(_snapper_field "$info_xml" "cleanup")
+            [[ -z "$snap_type" ]] && snap_type="single"
+            [[ -z "$snap_date" ]] && snap_date="unknown"
+            [[ -z "$snap_desc" ]] && snap_desc=""
+            [[ -z "$snap_cleanup" ]] && snap_cleanup=""
+
+            printf "  %-6s %-20s %-8s %-14s %s\n" "$num" "$snap_date" "$snap_type" "$snap_cleanup" "$snap_desc"
+            ((count++))
+        done < <(find "$snap_dir" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort -V)
+    else
+        while IFS= read -r snap_path; do
+            local name
+            name="$(basename "$snap_path")"
+            btrfs subvolume show "$snap_path" &>/dev/null || continue
+            local created
+            created=$(btrfs subvolume show "$snap_path" 2>/dev/null \
+                | grep -i 'creation time' | sed 's/.*:\s*//' || echo "unknown")
+            local ro_flag
+            ro_flag=$(btrfs property get "$snap_path" ro 2>/dev/null \
+                | grep -o 'true\|false' || echo "unknown")
+            echo "  $name  (created: $created, readonly: $ro_flag)"
+            ((count++))
+        done < <(find "$snap_dir" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort)
+    fi
+
+    if [[ "$count" -eq 0 ]]; then
+        warn "No snapshots found."
+        return 1
+    fi
+    log "$count snapshot(s) found."
+    return 0
+}
+
+# Detect or prompt for the target btrfs device.
+_detect_btrfs_device() {
     local device=""
 
-    # Try to find the btrfs device from the running system's root mount
+    # Try the running system's root mount first
     local root_source
     root_source=$(findmnt -no SOURCE / 2>/dev/null || true)
-
     if [[ -n "$root_source" ]]; then
-        # Strip btrfs subvolume suffix (e.g. /dev/sda3[/@] → /dev/sda3)
         root_source="${root_source%%\[*}"
         if blkid -o value -s TYPE "$root_source" 2>/dev/null | grep -q '^btrfs$'; then
             device="$root_source"
         fi
     fi
 
-    # If root is not btrfs (live USB scenario), scan for btrfs devices
+    # If root is not btrfs (Live ISO), scan for btrfs devices
     if [[ -z "$device" ]]; then
         local btrfs_devs=()
         while IFS= read -r dev; do
@@ -314,25 +383,110 @@ cmd_restore() {
 
         if [[ ${#btrfs_devs[@]} -eq 1 ]]; then
             device="${btrfs_devs[0]}"
+            log "Auto-detected btrfs device: $device"
         elif [[ ${#btrfs_devs[@]} -gt 1 ]]; then
-            echo "Multiple btrfs devices found:"
+            step "Multiple btrfs devices found"
+            local i=1
             for dev in "${btrfs_devs[@]}"; do
-                echo "  $dev"
+                local label size
+                label=$(blkid -o value -s LABEL "$dev" 2>/dev/null || true)
+                size=$(lsblk -dno SIZE "$dev" 2>/dev/null || true)
+                printf "  %d) %-30s %s %s\n" "$i" "$dev" "${size:+[$size]}" "${label:+($label)}"
+                ((i++))
             done
-            die "Cannot auto-detect target device. Specify the device or ensure only one btrfs volume is present."
-        else
-            die "No btrfs devices found."
+            echo ""
+            local choice
+            read -rp "Select device [1-${#btrfs_devs[@]}]: " choice
+            if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#btrfs_devs[@]} )); then
+                device="${btrfs_devs[$((choice - 1))]}"
+            else
+                die "Invalid selection."
+            fi
         fi
     fi
 
-    [[ -b "$device" ]] || die "Device '$device' does not exist or is not a block device."
+    # Still nothing — check for LUKS partitions that might contain btrfs
+    if [[ -z "$device" ]]; then
+        local luks_parts=()
+        while IFS= read -r dev; do
+            [[ -n "$dev" ]] && luks_parts+=("$dev")
+        done < <(blkid -t TYPE=crypto_LUKS -o device 2>/dev/null)
 
-    # Verify the device contains btrfs
-    if ! blkid -o value -s TYPE "$device" 2>/dev/null | grep -q '^btrfs$'; then
-        die "'$device' does not contain a btrfs filesystem."
+        if [[ ${#luks_parts[@]} -gt 0 ]]; then
+            step "No btrfs devices found, but LUKS partition(s) detected"
+            local i=1
+            for dev in "${luks_parts[@]}"; do
+                local size
+                size=$(lsblk -dno SIZE "$dev" 2>/dev/null || true)
+                printf "  %d) %-30s %s\n" "$i" "$dev" "${size:+[$size]}"
+                ((i++))
+            done
+            echo ""
+            local choice
+            read -rp "Unlock a LUKS partition? [1-${#luks_parts[@]}, or n to cancel]: " choice
+            if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#luks_parts[@]} )); then
+                local luks_dev="${luks_parts[$((choice - 1))]}"
+                local mapper_name="cryptroot"
+                read -rp "Mapper name [cryptroot]: " mapper_name_input
+                [[ -n "$mapper_name_input" ]] && mapper_name="$mapper_name_input"
+                cryptsetup open "$luks_dev" "$mapper_name" || die "Failed to unlock $luks_dev"
+                log "Unlocked $luks_dev as /dev/mapper/$mapper_name"
+                device="/dev/mapper/$mapper_name"
+            else
+                die "No btrfs devices available. Unlock your LUKS volume first."
+            fi
+        else
+            die "No btrfs or LUKS devices found."
+        fi
     fi
 
-    # ── Live-USB check ───────────────────────────────────────────────────
+    echo "$device"
+}
+
+cmd_restore() {
+    _require_root
+
+    local snapshot_id="" device=""
+
+    # Parse options
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -D|--device)
+                [[ -n "${2:-}" ]] || die "Missing argument for $1"
+                device="$2"
+                shift 2
+                ;;
+            -*)
+                die "Unknown option for restore: $1"
+                ;;
+            *)
+                if [[ -z "$snapshot_id" ]]; then
+                    snapshot_id="$1"
+                    shift
+                else
+                    die "Unexpected argument: $1"
+                fi
+                ;;
+        esac
+    done
+
+    # Validate snapshot ID if provided
+    if [[ -n "$snapshot_id" ]]; then
+        [[ "$snapshot_id" =~ ^[0-9]+$ ]] || die "Invalid snapshot ID: $snapshot_id (must be a number)"
+        [[ "$snapshot_id" -ne 0 ]] || die "Cannot restore snapshot 0 (current system)."
+    fi
+
+    # ── Resolve device ───────────────────────────────────────────────────
+    if [[ -n "$device" ]]; then
+        [[ -b "$device" ]] || die "Device '$device' does not exist or is not a block device."
+        if ! blkid -o value -s TYPE "$device" 2>/dev/null | grep -q '^btrfs$'; then
+            die "'$device' does not contain a btrfs filesystem."
+        fi
+    else
+        device=$(_detect_btrfs_device)
+    fi
+
+    # ── Live-system check ────────────────────────────────────────────────
     # If the btrfs device is the running root, we cannot restore in-place.
     local _root_dev
     _root_dev=$(findmnt -no SOURCE / 2>/dev/null || true)
@@ -345,11 +499,11 @@ cmd_restore() {
             echo ""
             warn "Cannot restore while booted from the target filesystem."
             echo ""
-            echo "  To restore snapshot #$snapshot_id:"
+            echo "  To restore snapshot${snapshot_id:+ #$snapshot_id}:"
             echo "  1. Boot from the Arch Linux installation medium (live USB)"
             echo "  2. If using LUKS, unlock the volume first:"
             echo "     cryptsetup open /dev/<partition> cryptroot"
-            echo "  3. Run: snapshot-manager restore $snapshot_id"
+            echo "  3. Run: snapshot-manager restore${snapshot_id:+ $snapshot_id}"
             echo ""
             exit 1
         fi
@@ -384,6 +538,18 @@ cmd_restore() {
     [[ -d "$mnt/@snapshots" ]] || die "Expected subvolume '@snapshots' not found — no snapshots directory."
 
     local snap_dir="$mnt/@snapshots"
+
+    # If no snapshot ID was given, list available snapshots and prompt
+    if [[ -z "$snapshot_id" ]]; then
+        step "Available snapshots on $device"
+        if ! _list_snapshots_offline "$snap_dir"; then
+            die "No snapshots to restore from."
+        fi
+        echo ""
+        read -rp "Enter snapshot ID to restore: " snapshot_id
+        [[ "$snapshot_id" =~ ^[0-9]+$ ]] || die "Invalid snapshot ID: $snapshot_id"
+        [[ "$snapshot_id" -ne 0 ]] || die "Cannot restore snapshot 0 (current system)."
+    fi
 
     # Resolve snapshot path
     local snap_path
