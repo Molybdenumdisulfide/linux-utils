@@ -31,8 +31,9 @@
         { "name": "qt5-wayland" },
         { "name": "qt6-wayland" },
         { "name": "dolphin" },
-        { "name": "grim" },
-        { "name": "slurp" }
+        { "name": "ttf-font-awesome" },
+        { "name": "otf-font-awesome" },
+        { "name": "noto-fonts-emoji" }
       ]
     },
     {
@@ -41,8 +42,7 @@
       "packages": [
         { "name": "neovim" },
         { "name": "docker" },
-        { "name": "docker-compose" },
-        { "name": "visual-studio-code-bin", "aur": true, "optional": true }
+        { "name": "docker-compose" }
       ]
     },
     {
@@ -63,6 +63,7 @@
       "description": "CLI and system utilities",
       "packages": [
         { "name": "htop" },
+        { "name": "btop" },
         { "name": "unzip" },
         { "name": "wget" },
         { "name": "curl" },
