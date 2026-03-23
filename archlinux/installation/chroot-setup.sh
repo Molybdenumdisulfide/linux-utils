@@ -594,6 +594,27 @@ EOF
 }
 EOF
     log "Logrotate config installed for /var/log/arch-update.log"
+
+    # Deploy update-check for bashrc status display
+    install -Dm0755 /root/update-check.sh /usr/local/bin/update-check
+    log "update-check deployed to /usr/local/bin/update-check"
+
+    # Add update-check to the user's .bashrc
+    if [[ -n "$USERNAME" ]]; then
+        _bashrc="/home/${USERNAME}/.bashrc"
+        _marker="# arch-update status"
+        if [[ -f "$_bashrc" ]] && grep -qF "$_marker" "$_bashrc"; then
+            log "update-check already present in $_bashrc — skipping"
+        else
+            cat >> "$_bashrc" << 'BASHRC'
+
+# arch-update status
+command -v update-check &>/dev/null && update-check
+BASHRC
+            chown "$USERNAME":"$USERNAME" "$_bashrc"
+            log "update-check added to $_bashrc"
+        fi
+    fi
 else
     log "Auto-update disabled (ENABLE_AUTO_UPDATE=false), skipping"
 fi

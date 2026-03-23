@@ -104,6 +104,7 @@ cp "$SCRIPT_DIR/install.sh"       "$WORK_DIR/install.sh"
 cp "$SCRIPT_DIR/chroot-setup.sh"  "$WORK_DIR/chroot-setup.sh"
 cp "$SCRIPT_DIR/update.sh"        "$WORK_DIR/update.sh"
 cp "$SCRIPT_DIR/btrfs-restore.sh" "$WORK_DIR/btrfs-restore.sh"
+cp "$SCRIPT_DIR/../tools/update-check.sh" "$WORK_DIR/update-check.sh"
 
 CFG="$WORK_DIR/install.sh"
 
