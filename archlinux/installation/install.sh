@@ -107,9 +107,11 @@ LUKS_PASSWORD="${LUKS_PASSWORD:-}"     # LUKS passphrase — prompted interactiv
 
 # Parse command-line flags
 DRY_RUN=false
+VERIFY_ONLY=false
 for arg in "$@"; do
     case "$arg" in
-        --dry-run) DRY_RUN=true ;;
+        --dry-run)  DRY_RUN=true ;;
+        --verify)   VERIFY_ONLY=true ;;
     esac
 done
 
@@ -879,7 +881,25 @@ configure_system() {
         log "btrfs-restore deployed to /usr/local/bin/btrfs-restore"
     fi
 
-    # Clean up staging files
+    # Stage verify-install.sh for post-install smoke test
+    if [[ -f "${script_dir}/verify-install.sh" ]]; then
+        cp "${script_dir}/verify-install.sh" /mnt/root/verify-install.sh
+        sed -i \
+            -e "s|__KERNEL__|${KERNEL}|g" \
+            -e "s|__BOOTLOADER__|${BOOTLOADER}|g" \
+            -e "s|__ROOT_FS__|${ROOT_FS}|g" \
+            -e "s|__TIMEZONE__|${TIMEZONE}|g" \
+            -e "s|__LOCALE__|${LOCALE}|g" \
+            -e "s|__HOSTNAME__|${HOSTNAME}|g" \
+            -e "s|__MICROCODE__|${MICROCODE}|g" \
+            -e "s|__LUKS__|${LUKS}|g" \
+            -e "s|__LUKS_HOME_UUID__|${LUKS_HOME_UUID}|g" \
+            -e "s|__DESKTOP_ENV__|${DESKTOP_ENV}|g" \
+            /mnt/root/verify-install.sh
+        chmod +x /mnt/root/verify-install.sh
+    fi
+
+    # Clean up staging files (keep verify-install.sh for run_verification)
     rm -f /mnt/root/chroot-setup.sh /mnt/root/update.sh /mnt/root/btrfs-restore.sh /mnt/root/update-check.sh
 
     # Clean pacman package cache to save disk space
@@ -1029,6 +1049,37 @@ main() {
         return 0
     fi
 
+    if [[ "$VERIFY_ONLY" == true ]]; then
+        # Standalone verification — arch-chroot into /mnt and run checks
+        local script_dir
+        script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        if [[ ! -f "${script_dir}/verify-install.sh" ]]; then
+            die "verify-install.sh not found next to install.sh"
+        fi
+        mountpoint -q /mnt || die "/mnt is not mounted — mount the installed system first"
+        cp "${script_dir}/verify-install.sh" /mnt/root/verify-install.sh
+        sed -i \
+            -e "s|__KERNEL__|${KERNEL}|g" \
+            -e "s|__BOOTLOADER__|${BOOTLOADER}|g" \
+            -e "s|__ROOT_FS__|${ROOT_FS}|g" \
+            -e "s|__TIMEZONE__|${TIMEZONE}|g" \
+            -e "s|__LOCALE__|${LOCALE}|g" \
+            -e "s|__HOSTNAME__|${HOSTNAME}|g" \
+            -e "s|__MICROCODE__|${MICROCODE}|g" \
+            -e "s|__LUKS__|${LUKS}|g" \
+            -e "s|__LUKS_HOME_UUID__|${LUKS_HOME_UUID}|g" \
+            -e "s|__DESKTOP_ENV__|${DESKTOP_ENV}|g" \
+            /mnt/root/verify-install.sh
+        chmod +x /mnt/root/verify-install.sh
+        step "Running post-install verification (standalone)"
+        arch-chroot /mnt \
+            env USERNAME="${USERNAME}" \
+            /root/verify-install.sh
+        local rc=$?
+        rm -f /mnt/root/verify-install.sh
+        return "$rc"
+    fi
+
     if [[ "$REQUIRE_WIPE_CONFIRMATION" == true ]]; then
         confirm_install
     fi
@@ -1043,6 +1094,15 @@ main() {
     install_base
     generate_fstab
     configure_system
+
+    # Post-install smoke test (runs by default)
+    if [[ -f /mnt/root/verify-install.sh ]]; then
+        step "Running post-install verification"
+        arch-chroot /mnt \
+            env USERNAME="${USERNAME}" \
+            /root/verify-install.sh || true
+        rm -f /mnt/root/verify-install.sh
+    fi
 
     # Copy the install log to the new system before unmounting
     cp "$install_log" /mnt/var/log/arch-install.log 2>/dev/null || true
