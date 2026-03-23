@@ -603,8 +603,25 @@ cmd_restore() {
         warn "It must be deleted before proceeding (the current @ will be renamed to @.broken)."
         read -rp "Type 'YES' to delete the existing @.broken: " confirm_broken
         [[ "$confirm_broken" == "YES" ]] || die "Cannot proceed without deleting @.broken. Aborting."
+
+        # Delete nested subvolumes deepest-first, then the parent
+        step "Deleting @.broken (removing nested subvolumes first)"
+        local nested=()
+        while IFS= read -r subvol; do
+            [[ -n "$subvol" ]] && nested+=("$subvol")
+        done < <(btrfs subvolume list -o "$mnt/@.broken" 2>/dev/null \
+            | awk '{print $NF}' | sort -r)
+
+        for subvol in "${nested[@]}"; do
+            local subvol_path="$mnt/$subvol"
+            if [[ -d "$subvol_path" ]]; then
+                btrfs subvolume delete "$subvol_path" 2>/dev/null \
+                    || warn "Could not delete nested subvolume: $subvol"
+            fi
+        done
+
         if ! btrfs subvolume delete "$mnt/@.broken"; then
-            die "Failed to delete previous @.broken — it may contain nested subvolumes. Remove it manually before retrying."
+            die "Failed to delete @.broken after removing nested subvolumes."
         fi
         log "Old @.broken deleted"
     fi
