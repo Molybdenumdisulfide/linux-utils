@@ -824,11 +824,15 @@ configure_system() {
     [[ -f "${script_dir}/update.sh" ]]        || die "update.sh not found next to install.sh"
     [[ -f "${script_dir}/btrfs-restore.sh" ]] || die "btrfs-restore.sh not found next to install.sh"
 
+    local tools_dir="${script_dir}/../tools"
+    [[ -f "${tools_dir}/update-check.sh" ]] || die "update-check.sh not found in tools/"
+
     # Stage scripts inside the new system's /root (not /tmp, because
     # arch-chroot mounts a fresh tmpfs on /tmp that hides existing files)
     cp "${script_dir}/chroot-setup.sh" /mnt/root/chroot-setup.sh
     cp "${script_dir}/update.sh"       /mnt/root/update.sh
     cp "${script_dir}/btrfs-restore.sh" /mnt/root/btrfs-restore.sh
+    cp "${tools_dir}/update-check.sh" /mnt/root/update-check.sh
 
     # Substitute placeholder variables (non-sensitive only)
     # Passwords are passed via environment variables to avoid writing them to disk
@@ -877,7 +881,7 @@ configure_system() {
     fi
 
     # Clean up staging files
-    rm -f /mnt/root/chroot-setup.sh /mnt/root/update.sh /mnt/root/btrfs-restore.sh
+    rm -f /mnt/root/chroot-setup.sh /mnt/root/update.sh /mnt/root/btrfs-restore.sh /mnt/root/update-check.sh
 
     # Clean pacman package cache to save disk space
     step "Cleaning pacman package cache"
