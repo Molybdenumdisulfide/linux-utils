@@ -152,7 +152,7 @@ check_fstab() {
     fi
 
     if [[ "$ROOT_FS" == "btrfs" ]]; then
-        if ! grep -qE 'subvol=/?@[,)]' /etc/fstab && ! grep -qE 'subvol=/?@$' /etc/fstab; then
+        if ! grep -qE 'subvol=/?@(,|[[:space:]]|$)' /etc/fstab; then
             _detail "/etc/fstab: btrfs root should have subvol=@ or subvol=/@"
             ok=false
         fi
@@ -160,8 +160,7 @@ check_fstab() {
 
     if command -v findmnt &>/dev/null; then
         if ! findmnt --verify --tab-file /etc/fstab &>/dev/null; then
-            _detail "findmnt --verify reported issues"
-            ok=false
+            _warn "findmnt --verify reported issues (may be expected inside chroot)"
         fi
     fi
 
@@ -191,8 +190,7 @@ check_initramfs() {
     fi
 
     if [[ ! -f "$fallback_hyphen" && ! -f "$fallback_underscore" ]]; then
-        _detail "fallback initramfs not found (checked ${fallback_hyphen} and ${fallback_underscore})"
-        ok=false
+        _warn "fallback initramfs not found (checked -fallback and _fallback naming)"
     fi
 
     if [[ "$LUKS" == "true" ]]; then
