@@ -23,7 +23,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Defaults
 DRY_RUN=false
 NO_AUR=false
-CONFIG="${SCRIPT_DIR}/packages.json"
+CONFIG="${3:-}"
 declare -a CATEGORIES=()
 
 # Colors

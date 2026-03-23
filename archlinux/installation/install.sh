@@ -26,6 +26,9 @@ set -euo pipefail
 # ==============================================================================
 # CONFIGURATION — Edit these variables before running
 # ==============================================================================
+# Automation flags
+REQUIRE_WIPE_CONFIRMATION=true  # set to false to skip "type YES to continue" prompt for disk wiping
+REQUIRE_REBOOT_CONFIRMATION=true  # set to false to skip the reboot prompt at the end
 
 # Target disk (e.g., /dev/sda, /dev/nvme0n1, /dev/vda)
 DISK="/dev/sda"
@@ -79,7 +82,7 @@ REFLECTOR_COUNTRY=""  # e.g., "US" or "US,DE" (empty = auto)
 ENABLE_MULTILIB="false"
 
 # GPU / display driver
-# Options: amd | intel | nvidia | nvidia-open | vmware | virtualbox | "" (none/headless)
+# Options: amd | intel | nvidia | nvidia-open | qemu | vmware | virtualbox | "" (none/headless)
 GPU_DRIVER=""
 
 # Desktop environment
@@ -260,8 +263,8 @@ preflight_checks() {
         [[ "$USERNAME" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] \
             || die "Invalid USERNAME '$USERNAME'. Must start with a lowercase letter or underscore, contain only lowercase letters, digits, underscores, or hyphens, and be 1-32 characters."
     fi
-    [[ -z "$GPU_DRIVER"  || "$GPU_DRIVER"  =~ ^(amd|intel|nvidia|nvidia-open|vmware|virtualbox)$ ]] \
-                                                                            || die "Invalid GPU_DRIVER '$GPU_DRIVER'. Must be: amd, intel, nvidia, nvidia-open, vmware, virtualbox, or empty."
+    [[ -z "$GPU_DRIVER"  || "$GPU_DRIVER"  =~ ^(amd|intel|nvidia|nvidia-open|qemu|vmware|virtualbox)$ ]] \
+                                                                            || die "Invalid GPU_DRIVER '$GPU_DRIVER'. Must be: amd, intel, nvidia, nvidia-open, qemu, vmware, virtualbox, or empty."
     # Normalize "plasma" → "kde" (single canonical name)
     [[ "$DESKTOP_ENV" == "plasma" ]] && DESKTOP_ENV="kde"
     [[ -z "$DESKTOP_ENV" || "$DESKTOP_ENV" =~ ^(kde|gnome|xfce|i3|hyprland|sway)$ ]] \
@@ -758,6 +761,7 @@ build_package_list() {
             esac
             _pkgs+=("${KERNEL}-headers" nvidia-utils nvidia-settings)
             ;;
+        qemu)        _pkgs+=(mesa qemu-guest-agent spice-vdagent) ;;
         vmware)      _pkgs+=(xf86-video-vmware open-vm-tools) ;;
         virtualbox)  _pkgs+=(virtualbox-guest-utils) ;;
     esac
@@ -918,8 +922,12 @@ finish_install() {
     log "============================================"
     echo ""
 
-    read -rp "Reboot now? [y/N]: " do_reboot
-    if [[ "${do_reboot,,}" == "y" ]]; then
+    if [[ "$REQUIRE_REBOOT_CONFIRMATION" == true ]]; then
+        read -rp "Reboot now? [y/N]: " do_reboot
+        if [[ "${do_reboot,,}" == "y" ]]; then
+            reboot
+        fi
+    else
         reboot
     fi
 }
@@ -1018,7 +1026,10 @@ main() {
         return 0
     fi
 
-    confirm_install
+    if [[ "$REQUIRE_WIPE_CONFIRMATION" == true ]]; then
+        confirm_install
+    fi
+
     collect_passwords
     update_clock
     INSTALL_STARTED=true
