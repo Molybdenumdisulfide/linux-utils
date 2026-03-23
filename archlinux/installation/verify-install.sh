@@ -56,14 +56,14 @@ TOTAL=0
 
 _pass() {
     echo -e "  ${GREEN}${SYM_OK}${NC} $1"
-    ((PASS++))
-    ((TOTAL++))
+    (( ++PASS ))
+    (( ++TOTAL ))
 }
 
 _fail() {
     echo -e "  ${RED}${SYM_ERR}${NC} $1"
-    ((FAIL++))
-    ((TOTAL++))
+    (( ++FAIL ))
+    (( ++TOTAL ))
 }
 
 _warn() {
@@ -99,8 +99,34 @@ check_bootloader() {
             ok=false
         fi
     elif [[ "$BOOTLOADER" == "grub" ]]; then
-        if [[ ! -f /boot/grub/grub.cfg ]]; then
+        if [[ -f /boot/grub/grub.cfg ]]; then
+            if ! grep -q "vmlinuz-${KERNEL}" /boot/grub/grub.cfg; then
+                _detail "grub.cfg does not reference vmlinuz-${KERNEL}"
+                ok=false
+            fi
+        else
             _detail "/boot/grub/grub.cfg missing"
+            ok=false
+        fi
+        if [[ -f /etc/default/grub ]]; then
+            if [[ "$LUKS" == "true" ]]; then
+                if ! grep -q 'GRUB_ENABLE_CRYPTODISK=y' /etc/default/grub; then
+                    _detail "GRUB_ENABLE_CRYPTODISK=y not set (required for LUKS)"
+                    ok=false
+                fi
+                if ! grep -q 'rd.luks.name=' /etc/default/grub; then
+                    _detail "GRUB_CMDLINE_LINUX missing rd.luks.name= (required for LUKS)"
+                    ok=false
+                fi
+            fi
+            if [[ "$ROOT_FS" == "btrfs" ]]; then
+                if ! grep -q 'rootflags=subvol=@' /etc/default/grub; then
+                    _detail "GRUB_CMDLINE_LINUX missing rootflags=subvol=@ (required for btrfs)"
+                    ok=false
+                fi
+            fi
+        else
+            _detail "/etc/default/grub not found"
             ok=false
         fi
     fi
