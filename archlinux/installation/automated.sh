@@ -92,6 +92,13 @@ fi
 
 log "Loading config: $CONFIG_NAME"
 
+# ==============================================================================
+# VALIDATE CONFIG
+# ==============================================================================
+
+bash "$SCRIPT_DIR/validate-config.sh" "$CONFIG_FILE" "$CONFIG_NAME" \
+    || die "Config validation failed for '$CONFIG_NAME'"
+
 CONFIG_JSON=$(jq -r ".configs[\"$CONFIG_NAME\"]" "$CONFIG_FILE")
 
 # ==============================================================================
