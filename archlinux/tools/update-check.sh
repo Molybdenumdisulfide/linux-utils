@@ -107,6 +107,17 @@ _parse_last_session() {
     _LAST_SNAP="${snapshot_info:-}"
 }
 
+# ── Format byte size to human-readable ───────────────────────────────────────
+
+_format_size() {
+    local bytes="$1"
+    if   (( bytes >= 1073741824 )); then awk "BEGIN{printf \"%.1f GB\", $bytes/1073741824}"
+    elif (( bytes >= 1048576 ));    then awk "BEGIN{printf \"%.1f MB\", $bytes/1048576}"
+    elif (( bytes >= 1024 ));       then awk "BEGIN{printf \"%.1f KB\", $bytes/1024}"
+    else printf "%d B" "$bytes"
+    fi
+}
+
 # ── Display last update result ───────────────────────────────────────────────
 
 _show_last_update() {
@@ -154,6 +165,20 @@ _show_last_update() {
         printf "    ${DIM}AUR ${GREEN}${SYM_OK}${NC}\n"
     elif [[ "$_LAST_AUR" == "failed" ]]; then
         printf "    ${DIM}AUR ${RED}${SYM_ERR} failed${NC}\n"
+    fi
+
+    # Log file size
+    if [[ -r "$LOG" ]]; then
+        local log_bytes log_size_fmt
+        log_bytes=$(stat -c '%s' "$LOG" 2>/dev/null) || return
+        log_size_fmt=$(_format_size "$log_bytes")
+        local size_colour="$DIM"
+        if (( log_bytes >= 10485760 )); then
+            size_colour="$RED"
+        elif (( log_bytes >= 1048576 )); then
+            size_colour="$YELLOW"
+        fi
+        printf "    ${size_colour}Log: %s (%s)${NC}\n" "$LOG" "$log_size_fmt"
     fi
 }
 
