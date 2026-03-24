@@ -45,6 +45,11 @@ OLD_TIMER_FILE="/etc/systemd/system/${OLD_SERVICE_NAME}.timer"
 DEFAULT_CRITICAL_PKGS="linux|linux-lts|linux-zen|linux-hardened|glibc|systemd|systemd-libs"
 DEFAULT_ONCALENDAR="daily"
 
+LOG_START="=== Starting daily update ==="
+LOG_COMPLETE="=== Update complete ==="
+LOG_DEFERRED="=== Update deferred ==="
+LOG_FAILED="=== Update failed ==="
+
 # ── Colours & symbols ────────────────────────────────────────────────────────
 
 BOLD='\033[1m'
@@ -193,7 +198,7 @@ _parse_last_session() {
     local last_start last_ts outcome pkg_count critical_names
     local aur_status snapshot_info
 
-    last_start=$(grep -n "=== Starting daily update ===" "$log_file" | tail -1 | cut -d: -f1)
+    last_start=$(grep -n "$LOG_START" "$log_file" | tail -1 | cut -d: -f1)
     [[ -z "$last_start" ]] && return 1
 
     local session
@@ -201,11 +206,11 @@ _parse_last_session() {
 
     last_ts=$(echo "$session" | head -1 | grep -oP '^\[\K[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}')
 
-    if echo "$session" | grep -q "=== Update complete ==="; then
+    if echo "$session" | grep -q "$LOG_COMPLETE"; then
         outcome="complete"
-    elif echo "$session" | grep -q "=== Update deferred ==="; then
+    elif echo "$session" | grep -q "$LOG_DEFERRED"; then
         outcome="deferred"
-    elif echo "$session" | grep -q "=== Update failed ==="; then
+    elif echo "$session" | grep -q "$LOG_FAILED"; then
         outcome="failed"
     elif echo "$session" | grep -q "System is up to date"; then
         outcome="up-to-date"
@@ -415,7 +420,7 @@ cmd_run() {
     _require_root
     _load_config
 
-    _tlog "=== Starting daily update ==="
+    _tlog "$LOG_START"
 
     # Refresh mirrors if reflector is available
     if command -v reflector &>/dev/null; then
@@ -432,7 +437,7 @@ cmd_run() {
         _tlog "checkupdates not found (install pacman-contrib); falling back to blind upgrade"
         _notify "normal" "update-manager" "checkupdates not available — upgrading blindly"
         pacman -Syu --noconfirm --noprogressbar 2>&1 | tee -a "$LOG"
-        _tlog "=== Update complete ==="
+        _tlog "$LOG_COMPLETE"
         return 0
     fi
 
@@ -460,7 +465,7 @@ cmd_run() {
         critical_names=$(echo "$critical_matches" | awk '{print $1}' | paste -sd ', ')
         _notify "critical" "update-manager: manual upgrade required" \
             "$pkg_count update(s) pending. Critical: $critical_names. Run 'pacman -Syu' manually."
-        _tlog "=== Update deferred ==="
+        _tlog "$LOG_DEFERRED"
         return 0
     fi
 
@@ -524,7 +529,7 @@ cmd_run() {
         _notify "critical" "update-manager: upgrade failed" \
             "pacman -Syu exited with an error. Check $LOG for details."
         _tlog "ERROR: pacman -Syu failed"
-        _tlog "=== Update failed ==="
+        _tlog "$LOG_FAILED"
         return 1
     fi
 
@@ -577,7 +582,7 @@ cmd_run() {
     fi
 
     _notify "normal" "update-manager" "Upgrade complete ($pkg_count packages)"
-    _tlog "=== Update complete ==="
+    _tlog "$LOG_COMPLETE"
 }
 
 # ── cmd_schedule ─────────────────────────────────────────────────────────────
