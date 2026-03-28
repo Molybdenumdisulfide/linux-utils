@@ -599,7 +599,7 @@ fi
 # ------------------------------------------------------------------------------
 if [[ -n "$WIREGUARD_CONFIG" ]]; then
     log "Configuring WireGuard VPN"
-    pacman -S --noconfirm --needed wireguard-tools
+    pacman -S --noconfirm --needed wireguard-tools systemd-resolvconf
 
     _wg_basename="$(basename "$WIREGUARD_CONFIG")"
     _wg_iface="${_wg_basename%.conf}"
@@ -615,6 +615,9 @@ if [[ -n "$WIREGUARD_CONFIG" ]]; then
     if [[ -n "$_wg_iface" ]]; then
         systemctl enable "wg-quick@${_wg_iface}.service"
         log "wg-quick@${_wg_iface}.service enabled (auto-start on boot)"
+
+        systemctl enable systemd-resolved.service
+        log "systemd-resolved.service enabled (required for WireGuard DNS)"
 
         install -Dm0755 /root/system-manager.sh /usr/local/bin/system-manager
         log "system-manager deployed to /usr/local/bin/system-manager"
