@@ -127,15 +127,13 @@ cmd_status() {
 
     # Auto-detect interface silently; bail if none or ambiguous
     if [[ -z "$iface" ]]; then
-        local -a configs=()
-        if [[ -d /etc/wireguard ]]; then
-            for f in /etc/wireguard/*.conf; do
-                [[ -f "$f" ]] && configs+=("$f")
-            done
-        fi
-        case "${#configs[@]}" in
+        local iface_list
+        iface_list="$(sudo wg show interfaces 2>/dev/null)" || true
+        local -a ifaces
+        read -ra ifaces <<< "$iface_list"
+        case "${#ifaces[@]}" in
             0) return 0 ;;
-            1) iface="$(basename "${configs[0]}" .conf)" ;;
+            1) iface="${ifaces[0]}" ;;
             *) return 0 ;;  # ambiguous — skip in bashrc context
         esac
     fi
